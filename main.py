@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -14,15 +15,18 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(messa
 logger = logging.getLogger(__name__)
 
 
+async def load_model_background():
+    """Load model in a background thread so it doesn't block port binding."""
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, load_model)
+    logger.info("Model loaded successfully.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ── Startup ──────────────────────────────────────────────────────────────
-    logger.info("Loading MobileNet model …")
-    load_model()
-    logger.info("Model ready. Starting server.")
+    # Start model loading in background — port binds immediately
+    asyncio.create_task(load_model_background())
     yield
-    # ── Shutdown ─────────────────────────────────────────────────────────────
-    logger.info("Shutting down.")
 
 
 app = FastAPI(
@@ -32,7 +36,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -41,10 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register custom exception handlers
 register_exception_handlers(app)
-
-# Include API router
 app.include_router(router, prefix="/api/v1")
 
 
@@ -55,7 +55,12 @@ async def root():
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {"status": "healthy", "version": settings.APP_VERSION}
+    from services.inference import model_manager
+    return {
+        "status": "healthy",
+        "version": settings.APP_VERSION,
+        "model_loaded": model_manager.is_loaded,   # tells you if model is ready
+    }
 
 
 if __name__ == "__main__":
