@@ -7,9 +7,6 @@ from PIL import Image
 from core.config import settings
 from core.exceptions import InvalidImageException, ImageSizeException
 
-# Image size limit
-MAX_FILE_BYTES = 10 * 1024 * 1024
-
 # Get image ready for openCV
 def bytes_to_cv2(image_bytes: bytes) -> np.ndarray:
     np_arr = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -20,10 +17,11 @@ def bytes_to_cv2(image_bytes: bytes) -> np.ndarray:
 
 # Validate image size
 def validate_image_size(image_bytes: bytes) -> None:
-    if len(image_bytes) > MAX_FILE_BYTES:
+    max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    if len(image_bytes) > max_bytes:
         raise ImageSizeException(
             f"File is too large ({len(image_bytes) / 1024 / 1024:.1f} MB). "
-            f"Maximum allowed size is {MAX_FILE_BYTES // 1024 // 1024} MB."
+            f"Maximum allowed size is {settings.MAX_FILE_SIZE_MB} MB."
         )
 
 # Image resizing

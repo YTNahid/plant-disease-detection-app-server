@@ -101,11 +101,8 @@ def run_inference(input_array: np.ndarray, top_k: int = None) -> list[dict]:
     top_prediction_confidence = float(np.max(raw_probs))
 
     if top_prediction_confidence < settings.CONFIDENCE_THRESHOLD:
-        raise AppError(
-            f"Could not confidently identify the plant or disease. "
-            f"Best confidence was {top_prediction_confidence * 100:.1f}%. "
-            f"Please try a clearer image.",
-            400
-        )
+        error = AppError("Could not confidently identify the plant or disease. Please try a clearer image.", 400)
+        error.best_confidence = f"{top_prediction_confidence * 100:.1f}%"
+        raise error
 
     return model_manager.format_predictions(raw_probs, top_k=top_k)

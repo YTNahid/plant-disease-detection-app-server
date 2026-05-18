@@ -8,12 +8,12 @@ import time
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, Query, status
+from fastapi import APIRouter, File, UploadFile, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from core.config import settings
-from core.exceptions import InvalidImageException
+from core.exceptions import AppError, InvalidImageException
 from services.preprocess import preprocess, get_image_info
 from services.inference import run_inference, model_manager
 from utils.class_names import get_all_classes, get_disease_info
@@ -37,20 +37,19 @@ class TopPrediction(BaseModel):
     treatment: str | None = None
     prevention: str | None = None
 
-
 class PredictResponse(BaseModel):
     filename: str
     predictions: list[Prediction]
-    top_prediction: TopPrediction
+    top_prediction: TopPrediction | None = None
     inference_time_ms: float
     image_info: dict
-
+    error: str | None = None
+    best_confidence: str | None = None
 
 class BatchPredictResponse(BaseModel):
     results: list[PredictResponse]
     total_images: int
     total_time_ms: float
-
 
 class ModelInfoResponse(BaseModel):
     loaded: bool
@@ -63,7 +62,6 @@ class ModelInfoResponse(BaseModel):
 # ── Allowed MIME types ────────────────────────────────────────────────────────
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}
-
 
 def _validate_upload(upload: UploadFile) -> None:
     if upload.content_type not in ALLOWED_TYPES:
@@ -85,9 +83,6 @@ async def predict(
     file: Annotated[UploadFile, File(description="Image file to classify")],
     top_k: int = Query(default=None, ge=1, le=20, description="Number of top results to return"),
 ):
-    """
-    Upload an image and receive the top-k predicted classes with confidence scores.
-    """
     _validate_upload(file)
     image_bytes = await file.read()
 
@@ -100,20 +95,16 @@ async def predict(
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
     if not predictions:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Model returned no predictions above the confidence threshold.",
-        )
-    
+        raise AppError("Model returned no predictions above the confidence threshold.", 422)
+
     top_pred_raw = predictions[0]
     top_info = get_disease_info(top_pred_raw["class_name"])
     detailed_top_prediction = TopPrediction(**top_pred_raw, **top_info)
 
-    # 4. Return the response
     return PredictResponse(
         filename=file.filename or "unknown",
         predictions=[Prediction(**p) for p in predictions],
-        top_prediction=detailed_top_prediction,           
+        top_prediction=detailed_top_prediction,
         inference_time_ms=round(elapsed_ms, 2),
         image_info=img_info,
     )
@@ -129,59 +120,49 @@ async def predict_batch(
     files: Annotated[list[UploadFile], File(description="Image files to classify")],
     top_k: int = Query(default=None, ge=1, le=20),
 ):
-    """
-    Upload up to 10 images at once and get predictions for each.
-    """
-    if len(files) > 10:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum 10 images per batch request.",
-        )
+    if len(files) > settings.MAX_IMAGE_UPLOAD:
+        raise AppError(f"Maximum {settings.MAX_IMAGE_UPLOAD} images per batch request.", 400)
 
     t_batch_start = time.perf_counter()
     results: list[PredictResponse] = []
 
     for upload in files:
-        _validate_upload(upload)
-        image_bytes = await upload.read()
-        img_info = get_image_info(image_bytes)
-
         t0 = time.perf_counter()
-        input_array = preprocess(image_bytes)
-        predictions = run_inference(input_array, top_k=top_k or settings.TOP_K_RESULTS)
-        elapsed_ms = (time.perf_counter() - t0) * 1000
+        img_info = {}
 
-        # 1. Create the lightweight list for the main array (FIXED: Using Prediction)
-        basic_predictions = [Prediction(**p) for p in predictions]
+        try:
+            _validate_upload(upload)
+            image_bytes = await upload.read()
+            img_info = get_image_info(image_bytes)
 
-        # 2. Handle the top prediction and fetch extra details
-        if predictions:
+            input_array = preprocess(image_bytes)
+            predictions = run_inference(input_array, top_k=top_k or settings.TOP_K_RESULTS)
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+
             top_pred_raw = predictions[0]
             top_info = get_disease_info(top_pred_raw["class_name"])
-            # FIXED: Using TopPrediction
             detailed_top = TopPrediction(**top_pred_raw, **top_info)
-        else:
-            # Fallback if the model returned nothing above the confidence threshold
-            # FIXED: Using TopPrediction
-            detailed_top = TopPrediction(
-                class_index=-1, 
-                class_name="none", 
-                confidence=0.0,
-                description="No predictions available.",
-                treatment="N/A",
-                prevention="N/A"
-            )
 
-        # 3. Append the formatted response
-        results.append(
-            PredictResponse(
+            results.append(PredictResponse(
                 filename=upload.filename or "unknown",
-                predictions=basic_predictions,
+                predictions=[Prediction(**p) for p in predictions],
                 top_prediction=detailed_top,
                 inference_time_ms=round(elapsed_ms, 2),
                 image_info=img_info,
-            )
-        )
+                error=None,
+            ))
+
+        except AppError as e:
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            results.append(PredictResponse(
+                filename=upload.filename or "unknown",
+                predictions=[],
+                top_prediction=None,
+                inference_time_ms=round(elapsed_ms, 2),
+                image_info=img_info,
+                error=e.message,
+                best_confidence=getattr(e, "best_confidence", None),  # ← add this
+            ))
 
     total_ms = (time.perf_counter() - t_batch_start) * 1000
     return BatchPredictResponse(
@@ -198,7 +179,6 @@ async def predict_batch(
     tags=["Model"],
 )
 async def model_info():
-    """Return information about the currently loaded model."""
     return ModelInfoResponse(**model_manager.get_model_info())
 
 
@@ -208,5 +188,4 @@ async def model_info():
     tags=["Model"],
 )
 async def list_classes():
-    """Return a mapping of class index → class name for the loaded model."""
     return JSONResponse(content={"classes": get_all_classes()})

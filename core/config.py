@@ -24,10 +24,12 @@ class Settings(BaseSettings):
     # Image preprocessing
     IMAGE_SIZE: tuple[int, int] = (224, 224)   # MobileNet default input size
     IMAGE_CHANNELS: int = 3
+    MAX_FILE_SIZE_MB: int = 10
+    MAX_IMAGE_UPLOAD: int = 10
 
     # Inference
     TOP_K_RESULTS: int = 5
-    CONFIDENCE_THRESHOLD: float = 0.01
+    CONFIDENCE_THRESHOLD: float = 0.50
 
     class Config:
         env_file = ".env"
