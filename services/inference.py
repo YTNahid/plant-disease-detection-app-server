@@ -1,10 +1,3 @@
-"""
-TensorFlow model loader and inference engine.
-
-The model is loaded once at startup (singleton pattern) so that every
-request reuses the same in-memory weights rather than reloading from disk.
-"""
-
 import logging
 import time
 from pathlib import Path
@@ -19,10 +12,8 @@ from utils.class_names import get_class_name, CLASS_NAMES
 
 logger = logging.getLogger(__name__)
 
-
+# Singleton that holds the loaded Keras model.
 class ModelManager:
-    """Singleton that holds the loaded Keras model."""
-
     _instance: Optional["ModelManager"] = None
     _model: Optional[tf.keras.Model] = None
 
@@ -31,10 +22,8 @@ class ModelManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    # ── Loading ───────────────────────────────────────────────────────────────
-
+    # Load (or reload) the .h5 model from disk.
     def load(self, model_path: str = None) -> None:
-        """Load (or reload) the .h5 model from disk."""
         path = model_path or settings.MODEL_PATH
         if not Path(path).exists():
             raise ModelNotLoadedException(f"Model file not found at: {path}")
@@ -55,18 +44,8 @@ class ModelManager:
     def is_loaded(self) -> bool:
         return self._model is not None
 
-    # ── Inference ─────────────────────────────────────────────────────────────
-
+    # Inference
     def predict(self, input_array: np.ndarray) -> np.ndarray:
-        """
-        Run inference on a pre-processed batch array.
-
-        Args:
-            input_array: float32 array of shape (1, H, W, C).
-
-        Returns:
-            1-D float32 probability array of shape (num_classes,).
-        """
         try:
             predictions = self.model.predict(input_array, verbose=0)
             return predictions[0]          # strip batch dimension
@@ -74,26 +53,13 @@ class ModelManager:
             logger.exception("Inference failed")
             raise InferenceException(str(exc)) from exc
 
-    # ── Result formatting ─────────────────────────────────────────────────────
-
+    # Result formatting
     def format_predictions(
         self,
         raw_probs: np.ndarray,
         top_k: int = None,
         threshold: float = None,
     ) -> list[dict]:
-        """
-        Convert raw probability array → sorted list of prediction dicts.
-
-        Args:
-            raw_probs:  1-D probability array from predict().
-            top_k:      Return only the top-k results.
-            threshold:  Exclude results below this confidence.
-
-        Returns:
-            List of {"class_index", "class_name", "confidence"} dicts,
-            sorted by confidence descending.
-        """
         top_k = top_k or settings.TOP_K_RESULTS
         threshold = threshold if threshold is not None else settings.CONFIDENCE_THRESHOLD
 
@@ -112,8 +78,8 @@ class ModelManager:
         results.sort(key=lambda x: x["confidence"], reverse=True)
         return results[:top_k]
 
+    # Return a summary of the loaded model.
     def get_model_info(self) -> dict:
-        """Return a summary of the loaded model."""
         if not self.is_loaded:
             return {"loaded": False}
         return {
@@ -125,26 +91,11 @@ class ModelManager:
         }
 
 
-# ── Module-level singleton ────────────────────────────────────────────────────
-
 model_manager = ModelManager()
 
-
 def load_model() -> None:
-    """Called once at app startup to load the model into memory."""
     model_manager.load()
 
-
 def run_inference(input_array: np.ndarray, top_k: int = None) -> list[dict]:
-    """
-    Convenience wrapper used by API routes.
-
-    Args:
-        input_array: Pre-processed float32 array (1, H, W, C).
-        top_k:       How many top predictions to return.
-
-    Returns:
-        Sorted list of prediction dicts.
-    """
     raw_probs = model_manager.predict(input_array)
     return model_manager.format_predictions(raw_probs, top_k=top_k)
