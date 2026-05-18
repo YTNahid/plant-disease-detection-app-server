@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 
 from core.config import settings
-from core.exceptions import ModelNotLoadedException, InferenceException
+from core.exceptions import ModelNotLoadedException, InferenceException, AppError
 from utils.class_names import get_class_name, CLASS_NAMES
 
 logger = logging.getLogger(__name__)
@@ -98,4 +98,14 @@ def load_model() -> None:
 
 def run_inference(input_array: np.ndarray, top_k: int = None) -> list[dict]:
     raw_probs = model_manager.predict(input_array)
+    top_prediction_confidence = float(np.max(raw_probs))
+
+    if top_prediction_confidence < settings.CONFIDENCE_THRESHOLD:
+        raise AppError(
+            f"Could not confidently identify the plant or disease. "
+            f"Best confidence was {top_prediction_confidence * 100:.1f}%. "
+            f"Please try a clearer image.",
+            400
+        )
+
     return model_manager.format_predictions(raw_probs, top_k=top_k)
