@@ -1,13 +1,12 @@
 import io
-
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ExifTags
 
 from core.config import settings
 from core.exceptions import InvalidImageException, ImageSizeException
 
-# Get image ready for openCV
+# Get image ready for OpenCV
 def bytes_to_cv2(image_bytes: bytes) -> np.ndarray:
     np_arr = np.frombuffer(image_bytes, dtype=np.uint8)
     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
@@ -24,7 +23,7 @@ def validate_image_size(image_bytes: bytes) -> None:
             f"Maximum allowed size is {settings.MAX_FILE_SIZE_MB} MB."
         )
 
-# Image resizing
+# Resize image to target size.
 def resize_image(img: np.ndarray, target_size: tuple[int, int] = None) -> np.ndarray:
     if target_size is None:
         target_size = settings.IMAGE_SIZE
@@ -38,20 +37,20 @@ def resize_image(img: np.ndarray, target_size: tuple[int, int] = None) -> np.nda
     interpolation = cv2.INTER_AREA if (w > tw or h > th) else cv2.INTER_LINEAR
     return cv2.resize(img, (tw, th), interpolation=interpolation)
 
-# Image normalization (BGR -> RGB)
+# Normalize image to range [0, 1].
 def normalize_image(img: np.ndarray) -> np.ndarray:
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img_rgb.astype(np.float32) / 255.0
 
-# Image preprocessing
+# Begin image preprocessing pipeline.
 def preprocess(image_bytes: bytes) -> np.ndarray:
     validate_image_size(image_bytes)
-    img = bytes_to_cv2(image_bytes)
-    img = resize_image(img)
+    img = bytes_to_cv2(image_bytes)       
+    img = resize_image(img)          
     img = normalize_image(img)
-    return np.expand_dims(img, axis=0)  # Shape (1, H, W, 3) for mobilenetv2
+    return np.expand_dims(img, axis=0)
 
-# Return basic metadata about the uploaded image
+# Get image metadata
 def get_image_info(image_bytes: bytes) -> dict:
     try:
         pil_img = Image.open(io.BytesIO(image_bytes))

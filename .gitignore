@@ -8,6 +8,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+convert.py
 
 # Virtual environment
 appenv/

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = ["*"]
 
     # Model
-    MODEL_PATH: str = str(BASE_DIR / "model" / "mobilenet_best_model.h5")
+    MODEL_PATH: str = str(BASE_DIR / "model" / "mobilenet_best_model.tflite")
 
     # Image preprocessing
     IMAGE_SIZE: tuple[int, int] = (224, 224)   # MobileNet default input size

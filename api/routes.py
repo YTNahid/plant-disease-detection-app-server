@@ -85,29 +85,41 @@ async def predict(
 ):
     _validate_upload(file)
     image_bytes = await file.read()
-
     img_info = get_image_info(image_bytes)
     logger.info("Received image '%s' (%s KB)", file.filename, img_info.get("file_size_kb"))
 
     t0 = time.perf_counter()
-    input_array = preprocess(image_bytes)
-    predictions = run_inference(input_array, top_k=top_k or settings.TOP_K_RESULTS)
-    elapsed_ms = (time.perf_counter() - t0) * 1000
 
-    if not predictions:
-        raise AppError("Model returned no predictions above the confidence threshold.", 422)
+    try:
+        input_array = preprocess(image_bytes)
+        predictions = run_inference(input_array, top_k=top_k or settings.TOP_K_RESULTS)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
 
-    top_pred_raw = predictions[0]
-    top_info = get_disease_info(top_pred_raw["class_name"])
-    detailed_top_prediction = TopPrediction(**top_pred_raw, **top_info)
+        top_pred_raw = predictions[0]
+        top_info = get_disease_info(top_pred_raw["class_name"])
+        detailed_top_prediction = TopPrediction(**top_pred_raw, **top_info)
 
-    return PredictResponse(
-        filename=file.filename or "unknown",
-        predictions=[Prediction(**p) for p in predictions],
-        top_prediction=detailed_top_prediction,
-        inference_time_ms=round(elapsed_ms, 2),
-        image_info=img_info,
-    )
+        return PredictResponse(
+            filename=file.filename or "unknown",
+            predictions=[Prediction(**p) for p in predictions],
+            top_prediction=detailed_top_prediction,
+            inference_time_ms=round(elapsed_ms, 2),
+            image_info=img_info,
+            error=None,
+            best_confidence=None,
+        )
+
+    except AppError as e:
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        return PredictResponse(
+            filename=file.filename or "unknown",
+            predictions=[],
+            top_prediction=None,
+            inference_time_ms=round(elapsed_ms, 2),
+            image_info=img_info,
+            error=e.message,
+            best_confidence=getattr(e, "best_confidence", None),
+        )
 
 
 @router.post(
