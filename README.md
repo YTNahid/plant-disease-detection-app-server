@@ -4,6 +4,12 @@ A FastAPI backend that classifies plant diseases from leaf images using a Mobile
 
 ---
 
+## Deployment
+
+[https://plant-disease-detection-api-0bax.onrender.com/](https://plant-disease-detection-api-0bax.onrender.com/)
+
+---
+
 ## Features
 
 - Detects **38 plant disease classes** across 14 crops including Tomato, Potato, Apple, Corn, Grape, and more
