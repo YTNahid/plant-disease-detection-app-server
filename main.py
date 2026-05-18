@@ -14,9 +14,8 @@ from services.inference import load_model
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 logger = logging.getLogger(__name__)
 
-
+# Load model in a background thread so it doesn't block port binding.
 async def load_model_background():
-    """Load model in a background thread so it doesn't block port binding."""
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, load_model)
     logger.info("Model loaded successfully.")
@@ -59,7 +58,7 @@ async def health_check():
     return {
         "status": "healthy",
         "version": settings.APP_VERSION,
-        "model_loaded": model_manager.is_loaded,   # tells you if model is ready
+        "model_loaded": model_manager.is_loaded, 
     }
 
 
