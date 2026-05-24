@@ -1,10 +1,13 @@
 import io
 import cv2
 import numpy as np
-from PIL import Image, ExifTags
+from PIL import ImageGrab
 
 from core.config import settings
 from core.exceptions import InvalidImageException, ImageSizeException
+
+import tensorflow as tf
+preprocess_input = tf.keras.applications.mobilenet_v2.preprocess_input
 
 # Get image ready for OpenCV
 def bytes_to_cv2(image_bytes: bytes) -> np.ndarray:
@@ -37,10 +40,11 @@ def resize_image(img: np.ndarray, target_size: tuple[int, int] = None) -> np.nda
     interpolation = cv2.INTER_AREA if (w > tw or h > th) else cv2.INTER_LINEAR
     return cv2.resize(img, (tw, th), interpolation=interpolation)
 
-# Normalize image to range [0, 1].
+# Normalize image for mobilenetv2
 def normalize_image(img: np.ndarray) -> np.ndarray:
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    return img_rgb.astype(np.float32) / 255.0
+    img_float = img_rgb.astype(np.float32)
+    return preprocess_input(img_float)       
 
 # Begin image preprocessing pipeline.
 def preprocess(image_bytes: bytes) -> np.ndarray:

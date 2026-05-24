@@ -69,10 +69,8 @@ class ModelManager:
         self,
         raw_probs: np.ndarray,
         top_k: int = None,
-        threshold: float = None,
     ) -> list[dict]:
         top_k = top_k or settings.TOP_K_RESULTS
-        threshold = threshold if threshold is not None else settings.CONFIDENCE_THRESHOLD
 
         results = [
             {
@@ -80,8 +78,7 @@ class ModelManager:
                 "class_name": get_class_name(i),
                 "confidence": float(raw_probs[i]),
             }
-            for i in range(len(raw_probs))
-            if raw_probs[i] >= threshold
+            for i in range(len(raw_probs))   # ← no threshold filter here
         ]
         results.sort(key=lambda x: x["confidence"], reverse=True)
         return results[:top_k]
@@ -109,16 +106,5 @@ def load_model() -> None:
 
 def run_inference(input_array: np.ndarray, top_k: int = None) -> list[dict]:
     raw_probs = model_manager.predict(input_array)
-    top_confidence = float(np.max(raw_probs))
-
     predictions = model_manager.format_predictions(raw_probs, top_k=top_k)
-
-    # Handle below threshold 
-    if top_confidence < settings.CONFIDENCE_THRESHOLD:
-        raise AppError(
-            message="Could not confidently identify the plant or disease. Please try a clearer image.",
-            status_code=400,
-            best_confidence=f"{top_confidence * 100:.1f}%",
-        )
-
     return predictions

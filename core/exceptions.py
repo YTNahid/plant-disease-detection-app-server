@@ -9,13 +9,11 @@ logger = logging.getLogger(__name__)
 
 # ── AppError — base class ─────────────────────────────────────────────────────
 class AppError(Exception):
-    def __init__(self, message: str, status_code: int = 500, best_confidence: str = None):
+    def __init__(self, message: str, status_code: int = 500):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.status = "fail" if str(status_code).startswith("4") else "error"
-        self.is_operational = True
-        self.best_confidence = best_confidence
 
 # ── Shortcut error classes ────────────────────────────────────────────────────
 
