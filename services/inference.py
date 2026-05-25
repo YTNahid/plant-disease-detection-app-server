@@ -92,14 +92,30 @@ class ModelManager:
     def get_model_info(self) -> dict:
         if not self.is_loaded:
             return {"loaded": False}
+        
         input_shape  = self._input_details[0]["shape"].tolist()
         output_shape = self._output_details[0]["shape"].tolist()
+        input_dtype  = self._input_details[0]["dtype"].__name__ 
+        
+        # Check if quantized — quantized models use uint8 or int8
+        is_quantized = input_dtype in ("uint8", "int8")
+        
+        # Get model file size
+        model_size_kb = None
+        try:
+            model_size_kb = round(Path(settings.MODEL_PATH).stat().st_size / 1024, 2)
+        except Exception:
+            pass
+
         return {
             "loaded": True,
+            "model_type": "TFLite",
+            "model_size_kb": model_size_kb,
             "input_shape": str(input_shape),
             "output_shape": str(output_shape),
             "num_classes": len(CLASS_NAMES),
-            "total_params": "N/A (TFLite model)",
+            "input_dtype": input_dtype,
+            "is_quantized": is_quantized,
         }
 
 

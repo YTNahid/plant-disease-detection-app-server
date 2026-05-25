@@ -54,10 +54,13 @@ class BatchPredictResponse(BaseModel):
 
 class ModelInfoResponse(BaseModel):
     loaded: bool
+    model_type: str
+    model_size_kb: float | None = None
     input_shape: str | None = None
     output_shape: str | None = None
     num_classes: int | None = None
-    total_params: int | None = None
+    input_dtype: str | None = None
+    is_quantized: bool | None = None
 
 
 # ── Allowed MIME types ────────────────────────────────────────────────────────
