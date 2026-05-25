@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # Image preprocessing
     IMAGE_SIZE: tuple[int, int] = (224, 224)   # MobileNet default input size
-    IMAGE_CHANNELS: int = 3
+    IMAGE_CHANNELS: int = 5
     MAX_FILE_SIZE_MB: int = 10
     MAX_IMAGE_UPLOAD: int = 10
 
