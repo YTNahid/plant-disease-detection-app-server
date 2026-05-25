@@ -7,3 +7,4 @@ python-multipart==0.0.9
 pillow==10.3.0
 pydantic-settings==2.3.0
 python-dotenv==1.2.2
+ai-edge-litert=2.1.5
