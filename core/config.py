@@ -7,7 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "MobileNet Image Classifier"
+    APP_NAME: str = "Plant Disease Classifier using MobileNetV2"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
 
