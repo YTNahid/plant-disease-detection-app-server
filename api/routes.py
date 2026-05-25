@@ -33,6 +33,8 @@ class TopPrediction(BaseModel):
     class_index: int
     class_name: str
     confidence: float
+    plant: str | None = None
+    disease: str | None = None
     description: str | None = None
     treatment: str | None = None
     prevention: str | None = None
