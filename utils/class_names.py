@@ -47,7 +47,7 @@ CLASS_NAMES: List[str] = [
     "Tomato___healthy"
 ]
 
-# ── Description, Treatment, and Prevention Metadata ───────────────────────────
+# ── Plant Name, Disease Name, Description, Treatment, and Prevention Metadata ───────────────────────────
 DISEASE_INFO: Dict[str, DiseaseInfo] = {
     "Apple___Apple_scab": {
         "plant": "Apple",

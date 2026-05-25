@@ -13,17 +13,20 @@ from utils.class_names import get_class_name, CLASS_NAMES
 
 logger = logging.getLogger(__name__)
 
+# ── ModelManager ────────────────────────────────────────────────────────────────────
 class ModelManager:
     _instance: Optional["ModelManager"] = None
-    _interpreter: Optional[Interpreter] = None          # fixed type hint
+    _interpreter: Optional[Interpreter] = None        
     _input_details = None
     _output_details = None
-
+    
+    # Singleton
     def __new__(cls) -> "ModelManager":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-
+    
+    # Load model
     def load(self, model_path: str = None) -> None:
         path = model_path or settings.MODEL_PATH
         if not Path(path).exists():
@@ -44,11 +47,12 @@ class ModelManager:
             elapsed,
             self._input_details[0]["shape"],
         )
-
+    
     @property
     def is_loaded(self) -> bool:
         return self._interpreter is not None
 
+    # Predict
     def predict(self, input_array: np.ndarray) -> np.ndarray:
         if not self.is_loaded:
             raise ModelNotLoadedException()
@@ -65,6 +69,7 @@ class ModelManager:
             logger.exception("TFLite inference failed")
             raise InferenceException(str(exc)) from exc
 
+    # Format predictions
     def format_predictions(
         self,
         raw_probs: np.ndarray,
@@ -78,11 +83,12 @@ class ModelManager:
                 "class_name": get_class_name(i),
                 "confidence": float(raw_probs[i]),
             }
-            for i in range(len(raw_probs))   # ← no threshold filter here
+            for i in range(len(raw_probs))  
         ]
         results.sort(key=lambda x: x["confidence"], reverse=True)
         return results[:top_k]
-
+    
+    # Get model info
     def get_model_info(self) -> dict:
         if not self.is_loaded:
             return {"loaded": False}
@@ -99,11 +105,11 @@ class ModelManager:
 
 model_manager = ModelManager()
 
-
+# ── Public API ────────────────────────────────────────────────────────────────────
 def load_model() -> None:
     model_manager.load()
 
-
+# ── Inference ────────────────────────────────────────────────────────────────────
 def run_inference(input_array: np.ndarray, top_k: int = None) -> list[dict]:
     raw_probs = model_manager.predict(input_array)
     predictions = model_manager.format_predictions(raw_probs, top_k=top_k)

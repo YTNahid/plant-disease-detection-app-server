@@ -73,30 +73,37 @@ def _validate_upload(upload: UploadFile) -> None:
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
-
+# ── Single Image Prediction ───────────────────────────────────────────────────
 @router.post("/predict", response_model=PredictResponse, summary="Classify a single image", tags=["Inference"])
 async def predict(
     file: Annotated[UploadFile, File(description="Image file to classify")],
     top_k: int = Query(default=None, ge=1, le=20, description="Number of top results to return"),
 ):
+    # Validate image
     _validate_upload(file)
+
+    # Read image
     image_bytes = await file.read()
     img_info = get_image_info(image_bytes)
     logger.info("Received image '%s' (%s KB)", file.filename, img_info.get("file_size_kb"))
-
+    
+    # Preprocess image
     t0 = time.perf_counter()
     input_array = preprocess(image_bytes)
     predictions = run_inference(input_array, top_k=top_k or settings.TOP_K_RESULTS)
     elapsed_ms = (time.perf_counter() - t0) * 1000
-
+    
+    # Format results
     top_pred_raw = predictions[0]
     top_info = get_disease_info(top_pred_raw["class_name"])
     detailed_top_prediction = TopPrediction(**top_pred_raw, **top_info)
 
+    # Handle low confidence
     low_confidence_msg = None
     if top_pred_raw["confidence"] < settings.CONFIDENCE_THRESHOLD:
         low_confidence_msg = "Could not confidently identify the plant or disease. Please try a clearer image."
 
+    # Add result to response
     return PredictResponse(
         filename=file.filename or "unknown",
         predictions=[Prediction(**p) for p in predictions],
@@ -107,7 +114,7 @@ async def predict(
     )
 
 
-
+# ── Batch Prediction ────────────────────────────────────────────────────────────────────
 @router.post("/predict/batch", response_model=BatchPredictResponse, summary="Classify multiple images", tags=["Inference"])
 async def predict_batch(
     files: Annotated[list[UploadFile], File(description="Image files to classify")],
@@ -123,21 +130,27 @@ async def predict_batch(
         t0 = time.perf_counter()
 
         try:
+            # Validate image
             _validate_upload(upload)
+
+            # Read image
             image_bytes = await upload.read()
             img_info = get_image_info(image_bytes)
             input_array = preprocess(image_bytes)
             predictions = run_inference(input_array, top_k=top_k or settings.TOP_K_RESULTS)
             elapsed_ms = (time.perf_counter() - t0) * 1000
-
+            
+            # Format results
             top_pred_raw = predictions[0]
             top_info = get_disease_info(top_pred_raw["class_name"])
             detailed_top = TopPrediction(**top_pred_raw, **top_info)
 
+            # Handle low confidence
             low_confidence_msg = None
             if top_pred_raw["confidence"] < settings.CONFIDENCE_THRESHOLD:
                 low_confidence_msg = "Could not confidently identify the plant or disease. Please try a clearer image."
 
+            # Add result to response
             results.append(PredictResponse(
                 filename=upload.filename or "unknown",
                 predictions=[Prediction(**p) for p in predictions],
@@ -158,7 +171,7 @@ async def predict_batch(
         total_time_ms=round(total_ms, 2),
     )
 
-
+# ── Model Info ────────────────────────────────────────────────────────────────────
 @router.get(
     "/model/info",
     response_model=ModelInfoResponse,
@@ -168,7 +181,7 @@ async def predict_batch(
 async def model_info():
     return ModelInfoResponse(**model_manager.get_model_info())
 
-
+# ── Class Labels ────────────────────────────────────────────────────────────────────
 @router.get(
     "/classes",
     summary="List all class labels",

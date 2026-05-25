@@ -1,7 +1,7 @@
 import io
 import cv2
 import numpy as np
-from PIL import ImageGrab
+from PIL import Image
 
 from core.config import settings
 from core.exceptions import InvalidImageException, ImageSizeException
